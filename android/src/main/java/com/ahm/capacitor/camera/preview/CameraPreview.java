@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.graphics.Point;
 import android.hardware.Camera;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Display;
 import android.view.MotionEvent;
@@ -25,8 +26,13 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import org.json.JSONArray;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraAccessException;
+import android.content.Context;
 
 @CapacitorPlugin(name = "CameraPreview", permissions = { @Permission(strings = { CAMERA }, alias = CameraPreview.CAMERA_PERMISSION_ALIAS) })
 public class CameraPreview extends Plugin implements CameraActivity.CameraPreviewListener {
@@ -45,7 +51,12 @@ public class CameraPreview extends Plugin implements CameraActivity.CameraPrevie
     private int previousOrientationRequest = -1;
 
     private CameraActivity fragment;
-    private int containerViewId = 20;
+
+    private final int containerViewId = 20;
+
+    private int ultraWideCameraId = -1;
+
+    public static final String TAG = "CameraPreview";
 
     @PluginMethod
     public void start(PluginCall call) {
@@ -318,21 +329,36 @@ public class CameraPreview extends Plugin implements CameraActivity.CameraPrevie
                         int computedY = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, y, metrics);
 
                         // size
-                        Integer computedWidth = null;
-                        Integer computedHeight = null;
-                        int computedPaddingBottom = 0;
+                        int computedWidth;
+                        int computedHeight;
+                        int computedPaddingBottom;
 
                         if (paddingBottom != 0) {
                             computedPaddingBottom = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, paddingBottom, metrics);
+                        } else {
+                            computedPaddingBottom = 0;
                         }
 
                         if (width != 0) {
                             computedWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, width, metrics);
+                        } else {
+                            Display defaultDisplay = getBridge().getActivity().getWindowManager().getDefaultDisplay();
+                            final Point size = new Point();
+                            defaultDisplay.getSize(size);
+
+                            computedWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_PX, size.x, metrics);
                         }
 
                         if (height != 0) {
                             computedHeight =
                                 (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, height, metrics) - computedPaddingBottom;
+                        } else {
+                            Display defaultDisplay = getBridge().getActivity().getWindowManager().getDefaultDisplay();
+                            final Point size = new Point();
+                            defaultDisplay.getSize(size);
+
+                            computedHeight =
+                                (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_PX, size.y, metrics) - computedPaddingBottom;
                         }
 
                         fragment.setRect(computedX, computedY, computedWidth, computedHeight);
@@ -487,5 +513,53 @@ public class CameraPreview extends Plugin implements CameraActivity.CameraPrevie
                     }
                 }
             );
+    }
+
+    /**
+     * Detects if there is a back ultra-wide camera by checking for a focal length <= 16mm.
+     * Logs all focal lengths for debugging.
+     */
+    private void detectUltraWideCamera() {
+        CameraManager mgr = (CameraManager) getActivity().getSystemService(Context.CAMERA_SERVICE);
+        try {
+            int cameraCount = Camera.getNumberOfCameras();
+            for (int idx = 0; idx < cameraCount; idx++) {
+                Camera.CameraInfo info = new Camera.CameraInfo();
+                Camera.getCameraInfo(idx, info);
+                if (info.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
+                    String camId = String.valueOf(idx);
+                    CameraCharacteristics c = mgr.getCameraCharacteristics(camId);
+                    float[] focals = c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
+                    if (focals != null && focals.length > 0) {
+                        // Log focal lengths for this camera index
+                        Log.d(TAG, "Camera index " + idx + " focal lengths: " + Arrays.toString(focals));
+                        // Use the first focal length to detect ultra-wide (<=16mm as example threshold)
+                        float focal = focals[0];
+                        Log.d(TAG, "detectUltraWideCamera: "+focal);
+                        if (focal <= 16.0f) {
+                            Log.d(TAG, "detectUltraWideCamera: entrou");
+                            ultraWideCameraId = idx;
+                            Log.d(TAG, "Ultra-wide detected on index: " + idx + " with focal: " + focal);
+                        }
+                    }
+                }
+            }
+        } catch (CameraAccessException e) {
+            Log.e(TAG, "detectUltraWideCamera failed", e);
+        }
+    }
+
+    /**
+     * Switch to the ultra-wide camera if available.
+     */
+    @PluginMethod
+    public void useUltraWideCamera(PluginCall call) {
+        detectUltraWideCamera();
+        Log.d("cu", "useUltraWideCamera: "+ultraWideCameraId);
+        if (ultraWideCameraId < 0) {
+            Logger.debug(getLogTag(), "Ultra-wide camera not available");
+            return;
+        }
+        fragment.switchToCameraInstance(ultraWideCameraId);
     }
 }
