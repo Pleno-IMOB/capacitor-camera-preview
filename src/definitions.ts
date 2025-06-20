@@ -1,4 +1,5 @@
 export type CameraPosition = 'rear' | 'front';
+
 export interface CameraPreviewOptions {
   /** Parent element to attach the video preview element to (applicable to the web platform only) */
   parent?: string;
@@ -35,6 +36,7 @@ export interface CameraPreviewOptions {
   /** Defaults to false - Android only.  Set if camera preview will support pinch to zoom. */
   enableZoom?: boolean;
 }
+
 export interface CameraPreviewPictureOptions {
   /** The picture height, optional, default 0 (Device default) */
   height?: number;
@@ -59,17 +61,29 @@ export interface CameraOpacityOptions {
 }
 
 export interface CameraPreviewPlugin {
-  start(options: CameraPreviewOptions): Promise<void>;
-  startRecordVideo(options: CameraPreviewOptions): Promise<void>;
-  stop(): Promise<void>;
-  stopRecordVideo(): Promise<void>;
-  capture(options: CameraPreviewPictureOptions): Promise<{ value: string }>;
-  captureSample(options: CameraSampleOptions): Promise<{ value: string }>;
-  getSupportedFlashModes(): Promise<{
+  start (options: CameraPreviewOptions): Promise<void>;
+
+  startRecordVideo (options: CameraPreviewOptions): Promise<void>;
+
+  stop (): Promise<void>;
+
+  stopRecordVideo (): Promise<void>;
+
+  capture (options: CameraPreviewPictureOptions): Promise<{ value: string }>;
+
+  captureSample (options: CameraSampleOptions): Promise<{ value: string }>;
+
+  getSupportedFlashModes (): Promise<{
     result: CameraPreviewFlashMode[];
   }>;
-  setFlashMode(options: { flashMode: CameraPreviewFlashMode | string }): Promise<void>;
-  flip(): Promise<void>;
-  setOpacity(options: CameraOpacityOptions): Promise<void>;
-  isCameraStarted(): Promise<{ value: boolean }>;
+
+  setFlashMode (options: { flashMode: CameraPreviewFlashMode | string }): Promise<void>;
+
+  flip (): Promise<void>;
+
+  setOpacity (options: CameraOpacityOptions): Promise<void>;
+
+  isCameraStarted (): Promise<{ value: boolean }>;
+
+  useUltraWideCamera (): Promise<void>;
 }
